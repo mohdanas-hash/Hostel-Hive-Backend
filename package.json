@@ -1,0 +1,17 @@
+{
+  "name": "hostel-hive-migrations",
+  "private": true,
+  "description": "Drizzle ORM schema + migrations for the Hostel Hive Neon database (the API itself is FastAPI/SQLAlchemy).",
+  "scripts": {
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate",
+    "db:push": "drizzle-kit push",
+    "db:studio": "drizzle-kit studio"
+  },
+  "devDependencies": {
+    "dotenv": "^16.4.5",
+    "drizzle-kit": "^0.31.0",
+    "drizzle-orm": "^0.44.0",
+    "pg": "^8.12.0"
+  }
+}

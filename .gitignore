@@ -1,0 +1,7 @@
+.venv/
+*.db
+__pycache__/
+.env
+node_modules/
+storage/
+.test_storage/
