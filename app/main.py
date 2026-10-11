@@ -6,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from .bootstrap import ensure_admin
 from .config import settings
 from .database import SessionLocal
-from .routers import admissions, amenities, auth, cafeterias, colleges, compare, listings, payments, posts
+from .routers import admin, admissions, amenities, auth, cafeterias, colleges, compare, images, listings, payments, posts
 
 
 @asynccontextmanager
@@ -24,7 +24,7 @@ app.add_middleware(CORSMiddleware, allow_origins=settings.cors_origins.split(","
                    allow_methods=["*"], allow_headers=["*"])
 
 for r in (auth.router, colleges.router, amenities.router, listings.router, cafeterias.router, admissions.router, posts.router,
-          compare.router, payments.router):
+          compare.router, payments.router, images.router, admin.router):
     app.include_router(r)
 
 

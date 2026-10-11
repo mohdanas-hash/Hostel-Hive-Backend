@@ -1,8 +1,16 @@
 from datetime import date, datetime
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field
+from typing import Annotated, Generic, TypeVar
+
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, StringConstraints
 
 from .models import AdmissionStatus, DocType, FoodType, Gender, Location, PaymentKind, PaymentStatus, PostKind, Role
+
+
+# Only images hosted on our Cloudinary (returned by POST /images) may be attached.
+ImageUrl = Annotated[str, StringConstraints(pattern=r"^https://res\.cloudinary\.com/", max_length=500)]
+
+T = TypeVar("T")
 
 
 class ORM(BaseModel):
@@ -75,6 +83,7 @@ class HostelIn(BaseModel):
     power_backup: bool = False
     cctv: bool = False
     includes_mess: bool = False
+    image_url: ImageUrl | None = None
 
 
 class HostelOut(ORM, HostelIn):
@@ -96,6 +105,7 @@ class MessIn(BaseModel):
     meals_per_day: int = 2
     hygiene_rating: float | None = Field(default=None, ge=0, le=5)
     seating_capacity: int | None = None
+    image_url: ImageUrl | None = None
     amenities: list[str] = []
 
 
@@ -121,6 +131,7 @@ class CafeteriaIn(BaseModel):
     hygiene_rating: float | None = Field(default=None, ge=0, le=5)
     seating_capacity: int | None = None
     home_delivery: bool = False
+    image_url: ImageUrl | None = None
     amenities: list[str] = []
 
 
@@ -139,6 +150,7 @@ class PostIn(BaseModel):
     cafeteria_id: int | None = None
     title: str
     body: str = ""
+    image_url: ImageUrl | None = None
     post_date: date | None = None  # defaults to today
 
 
@@ -151,6 +163,7 @@ class PostOut(ORM):
     cafeteria_id: int | None
     title: str
     body: str
+    image_url: str | None = None
     post_date: date
     created_at: datetime
 
@@ -218,6 +231,8 @@ class AdmissionOut(ORM):
     id: int
     user_id: int
     hostel_id: int
+    student_name: str | None = None
+    student_email: str | None = None
     status: AdmissionStatus
     reject_reason: str | None
     created_at: datetime
@@ -230,3 +245,35 @@ class AdmissionOut(ORM):
 class AdmissionReviewIn(BaseModel):
     approve: bool
     reason: str | None = None  # required when rejecting
+
+
+# ---- admin ----
+class Page(BaseModel, Generic[T]):
+    """Paged admin list: `items` is one page, `total` counts every match."""
+    items: list[T]
+    total: int
+
+
+class AdminUserOut(ORM):
+    id: int
+    name: str
+    email: EmailStr
+    role: Role
+    college_id: int | None
+    created_at: datetime
+    admissions: int = 0
+    payments: int = 0
+    reviews: int = 0
+
+
+class AdminPaymentOut(PaymentOut):
+    user_id: int
+    user_name: str | None = None
+    user_email: str | None = None
+    hostel_name: str | None = None
+    mess_name: str | None = None
+
+
+class AdminReviewOut(ReviewOut):
+    user_name: str | None = None
+    target_name: str | None = None

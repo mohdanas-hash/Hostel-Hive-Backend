@@ -58,6 +58,24 @@ def create_post(data: PostIn, db: Session = Depends(get_db),
     return post
 
 
+@router.put("/{post_id}", response_model=PostOut)
+def update_post(post_id: int, data: PostIn, db: Session = Depends(get_db),
+                _: User = Depends(require_role(Role.central_admin))):
+    post = db.get(DailyPost, post_id)
+    if not post:
+        raise HTTPException(404, "Post not found")
+    for model, key, name in ((College, "college_id", "College"), (Mess, "mess_id", "Mess"),
+                             (Hostel, "hostel_id", "Hostel"), (Cafeteria, "cafeteria_id", "Cafeteria")):
+        if getattr(data, key) and not db.get(model, getattr(data, key)):
+            raise HTTPException(404, f"{name} not found")
+    payload = data.model_dump()
+    payload["post_date"] = payload["post_date"] or post.post_date
+    for k, v in payload.items():
+        setattr(post, k, v)
+    db.commit()
+    return post
+
+
 @router.delete("/{post_id}", status_code=204)
 def delete_post(post_id: int, db: Session = Depends(get_db),
                 _: User = Depends(require_role(Role.central_admin))):

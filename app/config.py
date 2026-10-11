@@ -15,6 +15,9 @@ class Settings(BaseSettings):
     storage_dir: str = "./storage"        # private; never served statically
     max_upload_mb: int = 5
     cors_origins: str = "*"  # comma separated
+    cloudinary_cloud_name: str | None = None
+    cloudinary_api_key: str | None = None
+    cloudinary_api_secret: str | None = None
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 

@@ -185,3 +185,106 @@ def test_admission_rules(client):
     assert client.post("/payments", headers=s2, json={"kind": "hostel_rent", "hostel_id": hid}).status_code == 403
     assert [x["id"] for x in client.get("/admissions", headers=admin).json()] == [a["id"]]
     assert client.get("/admissions", headers=s2).json() == []
+
+
+def test_image_upload(client, monkeypatch):
+    from app import images
+    from app.config import settings
+    monkeypatch.setattr(settings, "cloudinary_cloud_name", "x")
+    monkeypatch.setattr(settings, "cloudinary_api_key", "x")
+    monkeypatch.setattr(settings, "cloudinary_api_secret", "x")
+    monkeypatch.setattr(images, "upload_image", lambda data, folder: {
+        "secure_url": f"https://res.cloudinary.com/x/{folder}/a.jpg", "public_id": f"hostel-hive/{folder}/a"})
+    h = login(client, "admin@c.edu", "secret1")
+    assert client.post("/images", files={"file": ("a.jpg", JPEG)}).status_code == 401
+    r = client.post("/images", headers=h, data={"folder": "hostels"}, files={"file": ("a.jpg", JPEG)})
+    assert r.status_code == 201 and r.json()["url"].endswith("hostels/a.jpg")
+    assert client.post("/images", headers=h, files={"file": ("a.pdf", PDF)}).status_code == 415
+    assert client.post("/images", headers=h, data={"folder": "../x"}, files={"file": ("a.jpg", JPEG)}).status_code == 422
+
+
+def test_image_url_on_listings_and_posts(client):
+    admin = login(client, "admin@c.edu", "secret1")
+    cid = client.post("/colleges", json={"name": "ABC", "city": "B"}, headers=admin).json()["id"]
+    url = "https://res.cloudinary.com/uvpweogu/image/upload/hostel-hive/hostels/a.jpg"
+    h = {"college_id": cid, "name": "H", "location": "on_campus", "monthly_rent": 1000, "image_url": url}
+    r = client.post("/hostels", headers=admin, json=h)
+    assert r.status_code == 201 and r.json()["image_url"] == url
+    assert client.get(f"/hostels/{r.json()['id']}").json()["image_url"] == url
+    # only our Cloudinary URLs are accepted
+    assert client.post("/hostels", headers=admin, json={**h, "image_url": "https://evil.com/a.jpg"}).status_code == 422
+    c = client.post("/cafeterias", headers=admin, json={"college_id": cid, "name": "C", "location": "on_campus",
+                                                         "avg_meal_price": 80, "image_url": url})
+    assert c.status_code == 201 and c.json()["image_url"] == url
+    m = client.post("/messes", headers=admin, json={"college_id": cid, "name": "M", "location": "on_campus",
+                                                    "monthly_price": 3000, "image_url": url})
+    assert m.status_code == 201 and m.json()["image_url"] == url
+    p = client.post("/posts", headers=admin, json={"college_id": cid, "kind": "notice", "title": "t", "image_url": url})
+    assert p.status_code == 201 and p.json()["image_url"] == url
+
+
+def test_admin_backoffice(client):
+    admin = login(client, "admin@c.edu", "secret1")
+    cid = client.post("/colleges", json={"name": "ABC", "city": "Bhopal"}, headers=admin).json()["id"]
+    c2 = client.post("/colleges", json={"name": "XYZ", "city": "Bhopal"}, headers=admin).json()["id"]
+
+    # college edit / delete (blocked while in use)
+    assert client.put(f"/colleges/{c2}", json={"name": "ABC", "city": "Bhopal"}, headers=admin).status_code == 409
+    assert client.put(f"/colleges/{c2}", json={"name": "XYZ Univ", "city": "Indore"}, headers=admin).json()["city"] == "Indore"
+    hid = client.post("/hostels", headers=admin, json={"college_id": cid, "name": "H", "location": "on_campus",
+                      "monthly_rent": 4000, "total_beds": 5, "available_beds": 2, "security_deposit": 1000}).json()["id"]
+    mid = client.post("/messes", headers=admin, json={"college_id": cid, "name": "M", "location": "off_campus",
+                      "monthly_price": 2500}).json()["id"]
+    assert client.delete(f"/colleges/{cid}", headers=admin).status_code == 409
+    assert client.delete(f"/colleges/{c2}", headers=admin).status_code == 204
+
+    # student pays -> shows up for admin with names + totals
+    client.post("/auth/register", json={"name": "Asha", "email": "a@s.com", "password": "secret1"})
+    stu = login(client, "a@s.com", "secret1")
+    aid = client.post("/admissions", json={"hostel_id": hid}, headers=stu).json()["id"]
+    submit_admission(client, stu, aid)
+    app_row = client.get("/admissions", headers=admin).json()[0]
+    assert app_row["student_name"] == "Asha" and app_row["student_email"] == "a@s.com"
+    p = client.post("/payments", json={"kind": "hostel_rent", "hostel_id": hid, "months": 2}, headers=stu).json()
+    client.post("/payments", json={"kind": "mess_fee", "mess_id": mid}, headers=stu)  # stays 'created'
+    client.post(f"/payments/{p['id']}/confirm", json={"provider_payment_id": "x"}, headers=stu)
+
+    pay = client.get("/admin/payments", headers=admin).json()
+    assert pay["total"] == 2 and pay["total_amount"] == 8000
+    assert pay["items"][0]["user_name"] == "Asha" and {i["hostel_name"] for i in pay["items"]} == {"H", None}
+    paid_only = client.get("/admin/payments?status=paid", headers=admin).json()
+    assert paid_only["total"] == 1 and paid_only["total_amount"] == 8000
+    assert client.get("/admin/payments?q=asha", headers=admin).json()["total"] == 2
+    assert client.get("/admin/payments", headers=stu).status_code == 403
+
+    users = client.get("/admin/users?q=asha", headers=admin).json()
+    assert users["total"] == 1 and users["items"][0]["payments"] == 2 and users["items"][0]["admissions"] == 1
+
+    st = client.get("/admin/stats", headers=admin).json()
+    assert st["counts"]["hostels"] == 1 and st["counts"]["users"] == 1
+    assert st["beds"] == {"total": 5, "available": 1}
+    assert st["payments"]["revenue"] == 8000 and st["admissions"]["submitted"] == 1
+    assert len(st["monthly_revenue"]) == 1
+
+    # reviews: list all with names, then delete
+    rv = client.post("/reviews", json={"target_type": "hostel", "target_id": hid, "rating": 4, "comment": "ok"}, headers=stu).json()
+    lst = client.get("/admin/reviews", headers=admin).json()
+    assert lst["total"] == 1 and lst["items"][0]["user_name"] == "Asha" and lst["items"][0]["target_name"] == "H"
+    assert client.delete(f"/admin/reviews/{rv['id']}", headers=stu).status_code == 403
+    assert client.delete(f"/admin/reviews/{rv['id']}", headers=admin).status_code == 204
+    assert client.get("/admin/reviews", headers=admin).json()["total"] == 0
+
+    # deactivated listings: hidden publicly, visible to admin, restorable
+    assert client.delete(f"/messes/{mid}", headers=admin).status_code == 204
+    assert client.get("/messes").json() == []
+    inactive = client.get("/admin/listings/messes?state=inactive", headers=admin).json()
+    assert inactive["total"] == 1 and inactive["items"][0]["id"] == mid
+    assert client.post(f"/admin/listings/messes/{mid}/restore", headers=admin).json()["is_active"] is True
+    assert len(client.get("/messes").json()) == 1
+    assert client.get("/admin/listings/hostels?q=zzz", headers=admin).json()["total"] == 0
+
+    # posts: edit
+    post = client.post("/posts", headers=admin, json={"college_id": cid, "kind": "notice", "title": "Old"}).json()
+    new = client.put(f"/posts/{post['id']}", headers=admin, json={"college_id": cid, "kind": "notice", "title": "New", "body": "b"})
+    assert new.status_code == 200 and new.json()["title"] == "New" and new.json()["post_date"] == post["post_date"]
+    assert client.put("/posts/999", headers=admin, json={"college_id": cid, "kind": "notice", "title": "x"}).status_code == 404

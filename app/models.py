@@ -153,6 +153,7 @@ class Hostel(Base):
     power_backup: Mapped[bool] = mapped_column(Boolean, default=False)
     cctv: Mapped[bool] = mapped_column(Boolean, default=False)
     includes_mess: Mapped[bool] = mapped_column(Boolean, default=False)
+    image_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
 
     college: Mapped[College] = relationship(back_populates="hostels")
@@ -177,6 +178,7 @@ class Mess(Base):
     meals_per_day: Mapped[int] = mapped_column(Integer, default=2)
     hygiene_rating: Mapped[float | None] = mapped_column(Float, nullable=True)  # 0-5 (inspected)
     seating_capacity: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    image_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
 
     college: Mapped[College] = relationship(back_populates="messes")
@@ -205,6 +207,7 @@ class Cafeteria(Base):
     hygiene_rating: Mapped[float | None] = mapped_column(Float, nullable=True)
     seating_capacity: Mapped[int | None] = mapped_column(Integer, nullable=True)
     home_delivery: Mapped[bool] = mapped_column(Boolean, default=False)
+    image_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
 
     college: Mapped[College] = relationship()
@@ -227,6 +230,7 @@ class DailyPost(Base):
     cafeteria_id: Mapped[int | None] = mapped_column(ForeignKey("cafeterias.id"), nullable=True)
     title: Mapped[str] = mapped_column(String(200))
     body: Mapped[str] = mapped_column(Text, default="")
+    image_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
     post_date: Mapped[date] = mapped_column(Date, default=date.today, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
@@ -255,8 +259,17 @@ class AdmissionApplication(Base):
 
     documents: Mapped[list["AdmissionDocument"]] = relationship(
         back_populates="application", lazy="selectin", cascade="all, delete-orphan")
+    student: Mapped["User"] = relationship(lazy="joined")
 
     __table_args__ = (UniqueConstraint("user_id", "hostel_id", name="uq_admission_user_hostel"),)
+
+    @property
+    def student_name(self) -> str | None:
+        return self.student.name if self.student else None
+
+    @property
+    def student_email(self) -> str | None:
+        return self.student.email if self.student else None
 
     @property
     def missing_documents(self) -> list[DocType]:

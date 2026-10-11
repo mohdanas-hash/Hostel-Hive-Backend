@@ -57,6 +57,7 @@ export const hostels = pgTable("hostels", {
   powerBackup: boolean("power_backup").notNull().default(false),
   cctv: boolean("cctv").notNull().default(false),
   includesMess: boolean("includes_mess").notNull().default(false),
+  imageUrl: varchar("image_url", { length: 500 }),
   isActive: boolean("is_active").notNull().default(true),
 }, (t) => [
   index("ix_hostels_college_id").on(t.collegeId),
@@ -76,6 +77,7 @@ export const messes = pgTable("messes", {
   mealsPerDay: integer("meals_per_day").notNull().default(2),
   hygieneRating: doublePrecision("hygiene_rating"),
   seatingCapacity: integer("seating_capacity"),
+  imageUrl: varchar("image_url", { length: 500 }),
   isActive: boolean("is_active").notNull().default(true),
 }, (t) => [
   index("ix_messes_college_id").on(t.collegeId),
@@ -98,6 +100,7 @@ export const cafeterias = pgTable("cafeterias", {
   hygieneRating: doublePrecision("hygiene_rating"),
   seatingCapacity: integer("seating_capacity"),
   homeDelivery: boolean("home_delivery").notNull().default(false),
+  imageUrl: varchar("image_url", { length: 500 }),
   isActive: boolean("is_active").notNull().default(true),
 }, (t) => [
   index("ix_cafeterias_college_id").on(t.collegeId),
@@ -129,6 +132,7 @@ export const dailyPosts = pgTable("daily_posts", {
   cafeteriaId: integer("cafeteria_id").references(() => cafeterias.id),
   title: varchar("title", { length: 200 }).notNull(),
   body: text("body").notNull().default(""),
+  imageUrl: varchar("image_url", { length: 500 }),
   postDate: date("post_date", { mode: "string" }).notNull(),
   createdAt: createdAt(),
 }, (t) => [

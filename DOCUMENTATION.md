@@ -568,6 +568,20 @@ Confirm: `{ "provider_payment_id": "pay_123", "success": true }` → status `pai
 If the admission is missing or not submitted, `POST /payments` returns `403` with
 `{ "detail": { "message": "...", "application_id": 12 | null, "missing": [...] | null } }`.
 
+### 7.12 Admin back office — `/admin` (👑 all)
+
+| Method | Path | Description |
+|---|---|---|
+| GET | `/admin/stats` | Counts (incl. deactivated), beds, admissions by status, revenue (total / rent / mess), monthly revenue, per-location counts |
+| GET | `/admin/users?q=&role=&limit=&offset=` | `{items, total}`; each user has `admissions`, `payments`, `reviews` counts |
+| GET | `/admin/payments?status=&kind=&user_id=&q=&limit=&offset=` | `{items, total, total_amount}` (`total_amount` = paid sum for the filters); items carry `user_name`, `user_email`, `hostel_name`, `mess_name` |
+| GET | `/admin/reviews?target_type=&target_id=&rating=&limit=&offset=` | `{items, total}` with `user_name`, `target_name` |
+| DELETE | `/admin/reviews/{id}` | Hard delete, `204` |
+| GET | `/admin/listings/{hostels\|messes\|cafeterias}?state=active\|inactive\|all&q=&college_id=&location=&limit=&offset=` | `{items, total}`, includes deactivated listings |
+| POST | `/admin/listings/{kind}/{id}/restore` | Re-activates a soft-deleted listing |
+
+Also added: `PUT /colleges/{id}`, `DELETE /colleges/{id}` (`409` while hostels/messes/cafeterias/posts/users reference it), `PUT /posts/{id}`, `folder=messes` on `POST /images`, and `student_name` / `student_email` on `AdmissionOut`.
+
 ---
 
 ## 8. Key flows
